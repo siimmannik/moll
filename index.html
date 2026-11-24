@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MÖLL">
+<meta name="theme-color" content="#232032">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>MÖLL</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Rubik:wght@400;500;700;900&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Patrick+Hand&display=swap">
@@ -512,6 +519,8 @@ body.netguest #hud.net #pp2{zoom:1} body.netguest #hud.net #pp1{zoom:.8} body.ne
 @media (max-height:560px){ body.touch.netguest #hud.net #pp2{zoom:.56;top:8px} body.touch.netguest #hud.net #pp1{zoom:.5;top:170px} }
 body.netguest #cards .cc,body.netguest #hud *{animation:none!important}
 body.netguest #cards .cc{opacity:1!important}
+#iosTip{text-align:center;margin:0 0 10px;background:rgba(255,214,10,.35);border-radius:10px;padding:6px 10px}
+html,body{height:100%}
 
 </style>
 
@@ -10523,7 +10532,7 @@ const V56=(()=>{
   function clean(html){ const t=document.createElement('template'); t.innerHTML=html; t.content.querySelectorAll('script,iframe,object,embed,link,meta,base,form,style').forEach(n=>n.remove());
     t.content.querySelectorAll('*').forEach(n=>{ for(const a of [...n.attributes]){ const v=a.value.replace(/\s+/g,'').toLowerCase(); if(/^on/i.test(a.name)||a.name==='srcdoc'||v.startsWith('javascript:')||((a.name==='src'||a.name==='href')&&!v.startsWith('data:image/')))n.removeAttribute(a.name); } }); return t.content; }
   function join(){ if(NET.role)return; if(!window.Peer){ say('Online ei ole selles versioonis saadaval.','bad'); return; } const code=($('#netCode').value||'').trim().toUpperCase().replace(/[^A-Z]/g,''); if(code.length!==4){ say('Sisesta neljatäheline toakood.','bad'); return; }
-    ac(); NET.role='guest'; NET.code=code; say('Ühendan…'); let peer; try{ peer=new Peer(peerOpts()); }catch(e){ NET.role=null; say('Ühendus ei õnnestu.','bad'); return; } NET.peer=peer;
+    ac(); full(); NET.role='guest'; NET.code=code; say('Ühendan…'); let peer; try{ peer=new Peer(peerOpts()); }catch(e){ NET.role=null; say('Ühendus ei õnnestu.','bad'); return; } NET.peer=peer;
     const fail=t=>{ if(NET.role!=='guest')return; if(document.body.classList.contains('netguest')){ wait('ÜHENDUS KATKES','<button class="btn2" id="netBack">TAGASI MENÜÜSSE</button>'); const b=$('#netBack'); if(b)b.onclick=()=>leave(); document.body.classList.add('netwait'); } else { try{ peer.destroy(); }catch(e){} NET.role=null; NET.peer=null; say(t,'bad'); } };
     peer.on('error',e=>{ const t=String(e&&e.type||''); fail(t==='peer-unavailable'?'Sellist tuba ei leitud – kontrolli koodi.':(location.protocol==='file:'||t==='network'||t==='server-error'||t==='socket-error'?'Online töötab ainult veebilehel (mitte siin).':'Ühendus ei õnnestu ('+t+').')); });
     peer.on('open',()=>{ const c=peer.connect(pid(code),{reliable:true,serialization:'json'}); NET.conn=c;
@@ -10552,12 +10561,14 @@ const V56=(()=>{
     NET.hudT-=rdt; if(NET.hudT>0)return; NET.hudT=.12; const s=h.innerHTML; if(s!==NET.lastHud||h.className!==NET.lastHudC){ NET.lastHud=s; NET.lastHudC=h.className; send({t:'h',c:h.className,h:s}); }
     const k=$('#cards'), on=k.classList.contains('show'), ks=on+'|'+k.innerHTML; if(ks!==NET.lastCards){ NET.lastCards=ks; send({t:'c',d:on?1:0,h:k.innerHTML}); } }
   function onStart(){ if(NET.role==='guest')return false; if(NET.role==='host'&&NET.conn){ state.nPlayers=2; if(!HEROES[state.picks[1]])state.picks[1]='vilkur'; }
-    if(TOUCH){ try{ const d=document.documentElement; const r=d.requestFullscreen&&d.requestFullscreen({navigationUI:'hide'}); if(r&&r.catch)r.catch(()=>{}); if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} } return true; }
+    full(); return true; }
+  function full(){ if(!TOUCH)return; try{ const d=document.documentElement; const fn=d.requestFullscreen||d.webkitRequestFullscreen; if(fn&&!document.fullscreenElement){ const r=fn.call(d,{navigationUI:'hide'}); if(r&&r.catch)r.catch(()=>{}); } if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} }
   function initUI(){ const row=mk('div','netRow','row'); row.innerHTML='<span class="lab">Online</span><button class="btn2" id="netHost">LOO TUBA</button><span class="hint" style="margin:0">või liitu sõbra toaga:</span><input id="netCode" maxlength="4" placeholder="KOOD" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn2" id="netJoin">LIITU</button>';
     const msg=mk('p','netMsg','hint',''); const p1=$('#pick1'); p1.parentNode.insertBefore(row,p1); p1.parentNode.insertBefore(msg,p1);
     $('#netHost').addEventListener('click',host); $('#netJoin').addEventListener('click',join); $('#netCode').addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter')join(); }); $('#netCode').addEventListener('keyup',e=>e.stopPropagation());
     const j=(Q.get('join')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,4); if(j){ $('#netCode').value=j; row.classList.add('hot'); say('Vali kangelane ja vajuta <b>LIITU</b>.','ok'); }
     if(TOUCH)buildTouch(); else addEventListener('touchstart',()=>buildTouch(),{once:true,passive:true});
+    const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); if(ios&&!navigator.standalone&&!/claude/.test(location.hostname)){ const h=mk('p','iosTip','hint','Terve ekraani jaoks: vajuta Safaris <b>Jaga</b> → <b>Lisa avakuvale</b> ja ava MÖLL sealt ikoonilt.'); row.parentNode.insertBefore(h,row); }
     addEventListener('beforeunload',()=>{ try{ if(NET.peer)NET.peer.destroy(); }catch(e){} }); }
   return {input,render,update,audio,onStart,initUI,NET,T,touch:()=>built,hosting:()=>NET.role==='host'&&!!NET.conn,blockPick:p=>NET.role==='host'&&!!NET.conn&&!!p&&p.idx===1&&!NET.allow};
 })();
