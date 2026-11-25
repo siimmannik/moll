@@ -534,6 +534,7 @@ body.touch .ovx{top:calc(14px + env(safe-area-inset-top));right:calc(18px + env(
   body.touch .ov .sheet{width:100vw;min-height:100vh;max-height:100vh;border-radius:0;transform:none;box-sizing:border-box;padding-left:16px;padding-right:16px}
 }
 body.touch .ov .sheet>*:first-child{padding-right:64px}
+body.touch #pause{z-index:40} body.touch #pause small{display:none} body.touch #pause .pbtns button{font-size:22px;padding:12px 22px}
 
 </style>
 
@@ -10532,14 +10533,16 @@ const V56=(()=>{
       const gone=()=>{ if(NET.conn!==c)return; NET.conn=null; NET.call=null; Object.assign(NET.R,{mx:0,mz:0,atk:false,sup:false,z:false}); if(NET.role==='host'){ say('Toa kood: <b class="code">'+NET.code+'</b> · sõber lahkus, ootan uut…'); if(state.mode==='play')showMsg('','sõber lahkus mängust',2); } };
       c.on('close',gone); c.on('error',gone); }); }
   function startCall(){ if(!NET.conn||!NET.peer)return; if(!NET.cv){ NET.cv=document.createElement('canvas'); NET.cv.width=960; NET.cv.height=540; NET.cx=NET.cv.getContext('2d',{alpha:false}); NET.cx.fillRect(0,0,960,540); }
-    const s=NET.cv.captureStream(30); try{ s.getVideoTracks()[0].contentHint='motion'; }catch(e){} if(NET.adest)NET.adest.stream.getAudioTracks().forEach(t=>s.addTrack(t));
-    const call=NET.peer.call(NET.conn.peer,s); NET.call=call; const tune=()=>{ try{ const pc=call.peerConnection; pc.getSenders().forEach(sd=>{ if(sd.track&&sd.track.kind==='video'){ const pa=sd.getParameters(); if(!pa.encodings||!pa.encodings.length)pa.encodings=[{}]; pa.encodings[0].maxBitrate=3500000; pa.encodings[0].maxFramerate=30; pa.degradationPreference='maintain-framerate'; sd.setParameters(pa).catch(()=>{}); } }); }catch(e){} }; setTimeout(tune,1500); setTimeout(tune,6000); }
+    const s=NET.cv.captureStream(TOUCH?15:30); try{ s.getVideoTracks()[0].contentHint='motion'; }catch(e){} if(NET.adest)NET.adest.stream.getAudioTracks().forEach(t=>s.addTrack(t));
+    const call=NET.peer.call(NET.conn.peer,s); NET.call=call; const tune=()=>{ try{ const pc=call.peerConnection; pc.getSenders().forEach(sd=>{ if(sd.track&&sd.track.kind==='video'){ const pa=sd.getParameters(); if(!pa.encodings||!pa.encodings.length)pa.encodings=[{}]; pa.encodings[0].maxBitrate=TOUCH?1500000:3500000; pa.encodings[0].maxFramerate=TOUCH?15:30; pa.degradationPreference='maintain-framerate'; sd.setParameters(pa).catch(()=>{}); } }); }catch(e){} }; setTimeout(tune,1500); setTimeout(tune,6000); }
   function view(p,key,x,y,w,h){ renderer.setViewport(x,y,w,h); renderer.setScissor(x,y,w,h); p.cam.aspect=w/h; p.cam.updateProjectionMatrix(); if(p.bar)p.bar.sp.visible=false; faceCam(p.cam); renderWith(p.cam,key,x,y,w,h); if(p.bar)p.bar.sp.visible=p.alive; }
   function render(){ if(NET.role!=='host'||!NET.conn||!NET.cv||state.players.length<2||(state.mode!=='play'&&state.mode!=='pause'))return false;
     const W=innerWidth,H=innerHeight,pr=renderer.getPixelRatio(); let w2=W,h2=Math.round(W/NET.aspect); if(h2>H){ h2=H; w2=Math.round(H*NET.aspect); }
-    renderer.setScissorTest(true); view(state.players[1],'n2',0,0,w2,h2);
-    const cw=Math.min(1280,Math.round(w2*pr/2)*2), ch=Math.round(cw*h2/w2/2)*2; if(NET.cv.width!==cw||NET.cv.height!==ch){ NET.cv.width=cw; NET.cv.height=ch; }
-    try{ NET.cx.drawImage(renderer.domElement,0,(H-h2)*pr,w2*pr,h2*pr,0,0,cw,ch); }catch(e){}
+    NET.fr=(NET.fr||0)+1; renderer.setScissorTest(true);
+    if(!TOUCH||NET.fr%2===0){ if(TOUCH){ const k=Math.min(1,640/(w2*pr)); w2=Math.max(2,Math.round(w2*k)); h2=Math.max(2,Math.round(h2*k)); }
+      view(state.players[1],'n2',0,0,w2,h2);
+      const cw=Math.min(TOUCH?640:1280,Math.round(w2*pr/2)*2), ch=Math.round(cw*h2/w2/2)*2; if(NET.cv.width!==cw||NET.cv.height!==ch){ NET.cv.width=cw; NET.cv.height=ch; }
+      try{ NET.cx.drawImage(renderer.domElement,0,(H-h2)*pr,w2*pr,h2*pr,0,0,cw,ch); }catch(e){} }
     view(state.players[0],'n1',0,0,W,H); renderer.setScissorTest(false); return true; }
 
   function clean(html){ const t=document.createElement('template'); t.innerHTML=html; t.content.querySelectorAll('script,iframe,object,embed,link,meta,base,form,style').forEach(n=>n.remove());
@@ -10578,7 +10581,7 @@ const V56=(()=>{
   function full(){ if(!TOUCH)return; try{ const d=document.documentElement; const fn=d.requestFullscreen||d.webkitRequestFullscreen; if(fn&&!document.fullscreenElement){ const r=fn.call(d,{navigationUI:'hide'}); if(r&&r.catch)r.catch(()=>{}); } if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} }
   function initUI(){ const row=mk('div','netRow','row'); row.innerHTML='<span class="lab">Online</span><button class="btn2" id="netHost">LOO TUBA</button><span class="hint" style="margin:0">või liitu sõbra toaga:</span><input id="netCode" maxlength="4" placeholder="KOOD" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn2" id="netJoin">LIITU</button>';
     const msg=mk('p','netMsg','hint',''); const p1=$('#pick1'); p1.parentNode.insertBefore(row,p1); p1.parentNode.insertBefore(msg,p1);
-    $('#netHost').addEventListener('click',host); $('#netJoin').addEventListener('click',join); $('#netCode').addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter')join(); }); $('#netCode').addEventListener('keyup',e=>e.stopPropagation());
+    $('#pMenu').addEventListener('click',()=>document.body.classList.remove('ingame')); $('#netHost').addEventListener('click',host); $('#netJoin').addEventListener('click',join); $('#netCode').addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter')join(); }); $('#netCode').addEventListener('keyup',e=>e.stopPropagation());
     const j=(Q.get('join')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,4); if(j){ $('#netCode').value=j; row.classList.add('hot'); say('Vali kangelane ja vajuta <b>LIITU</b>.','ok'); }
     if(TOUCH)buildTouch(); else addEventListener('touchstart',()=>buildTouch(),{once:true,passive:true});
     const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1); if(ios&&!navigator.standalone&&!/claude/.test(location.hostname)){ const h=mk('p','iosTip','hint','Terve ekraani jaoks: vajuta Safaris <b>Jaga</b> → <b>Lisa avakuvale</b> ja ava MÖLL sealt ikoonilt.'); row.parentNode.insertBefore(h,row); }
