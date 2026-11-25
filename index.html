@@ -521,6 +521,19 @@ body.netguest #cards .cc,body.netguest #hud *{animation:none!important}
 body.netguest #cards .cc{opacity:1!important}
 #iosTip{text-align:center;margin:0 0 10px;background:rgba(255,214,10,.35);border-radius:10px;padding:6px 10px}
 html,body{height:100%}
+body.touch #menu .card{padding-top:calc(24px + env(safe-area-inset-top));padding-bottom:calc(26px + env(safe-area-inset-bottom));padding-left:max(32px,env(safe-area-inset-left));padding-right:max(32px,env(safe-area-inset-right))}
+body.touch .ov .sheet{padding-top:calc(22px + env(safe-area-inset-top));padding-bottom:calc(26px + env(safe-area-inset-bottom));max-height:100vh}
+body.touch .ovx{top:calc(14px + env(safe-area-inset-top));right:calc(18px + env(safe-area-inset-right))}
+@media (display-mode:standalone),(display-mode:fullscreen){ html{min-height:calc(100% + env(safe-area-inset-top))} }
+@media (orientation:portrait){
+  body.touch #menu{align-items:flex-start}
+  body.touch #menu .card{width:100vw;min-height:100vh;max-height:100vh;transform:none;border-radius:0;padding-left:16px;padding-right:16px;box-sizing:border-box}
+  body.touch .row{flex-wrap:wrap}
+  body.touch .row .hint{flex-basis:100%;text-align:center;margin:0}
+  body.touch .ov{align-items:flex-start}
+  body.touch .ov .sheet{width:100vw;min-height:100vh;max-height:100vh;border-radius:0;transform:none;box-sizing:border-box;padding-left:16px;padding-right:16px}
+}
+body.touch .ov .sheet>*:first-child{padding-right:64px}
 
 </style>
 
