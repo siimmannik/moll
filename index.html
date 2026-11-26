@@ -9738,7 +9738,7 @@ function updateCamera(dt){
       if(!p.camPos||p.camPos.distanceTo(ey)>3)p.camPos=ey.clone(); else p.camPos.lerp(ey,1-Math.pow(1e-7,dt)); p.camT=0; p.camLift=0;
       p.cam.position.copy(p.camPos); if(state.shake>0){ p.cam.position.x+=rand(-1,1)*state.shake*.12; p.cam.position.y+=rand(-1,1)*state.shake*.12; }
       const lp=(p.pitch-.45)*1.2; p.cam.lookAt(p.camPos.x+f.x*Math.cos(lp)*6,p.camPos.y-Math.sin(lp)*6,p.camPos.z+f.z*Math.cos(lp)*6); if(p.buffs&&p.buffs.wine>0)p.cam.rotateZ(Math.sin(state.time*2.6)*.14);
-      p.fovKick=(p.fovKick||0)*Math.max(0,1-dt*3.5); p.cam.fov=74+p.fovKick*12+(p.dash?8:0); continue; }
+      p.fovKick=(p.fovKick||0)*Math.max(0,1-dt*3.5); p.cam.fov=74+p.fovKick*12+(p.dash?8:0); if(typeof VM!=='undefined')VM.update(p,dt); continue; }
     const dist=SET.camDist*(p.buffs&&p.buffs.giant>0?1.7:(p.buffs&&p.buffs.tiny>0?.7:1));
     /* Kaamera kõrgus kasvab koos kaugusseadikuga: kitsas koridoris lõikab sein kauguse maha ja muidu
        ei muudaks seadiku ülemine pool enam midagi. Kõrgus ei sõltu seinast, seega seadik mõjub alati. */
@@ -9777,8 +9777,8 @@ function renderWith(cam,key,x,y,w,h){ renderer.setViewport(x,y,w,h); renderer.se
     c.composer.render(); } else renderer.render(scene,cam); }
 addEventListener('keydown',e=>{ if(e.code==='KeyF'&&state.mode!=='menu'){ bloomOn=!bloomOn; SET.bloom=bloomOn; saveSettings(); showMsg('',bloomOn?'EFEKTID SEES':'EFEKTID VÄLJAS',1); } });
 function faceCam(cam){ V54.face(cam); for(const e of ents){ const u=e.mesh.userData; if(u.M&&u.M.paper&&e.mesh.visible){ e.mesh.rotation.y=Math.atan2(cam.position.x-e.pos.x,cam.position.z-e.pos.z); } } }
-function fpvHide(p){ if(!SET.fpv||!p.mesh||!p.mesh.visible)return false; p.mesh.visible=false; return true; }
-function fpvShow(p,h){ if(h)p.mesh.visible=true; }
+function fpvHide(p){ if(!SET.fpv)return false; if(typeof VM!=='undefined')VM.show(p,true); if(!p.mesh||!p.mesh.visible)return false; p.mesh.visible=false; return true; }
+function fpvShow(p,h){ if(typeof VM!=='undefined')VM.show(p,false); if(h)p.mesh.visible=true; }
 function setFpv(on){ on=!!on; if(on===!!SET.fpv)return; if(on){ SET.acBefore=SET.autoCam; SET.autoCam=false; } else SET.autoCam=SET.acBefore!==undefined?SET.acBefore:true; SET.fpv=on; document.body.classList.toggle('fpv',on); for(const p of state.players){ p.camPos=null; p.refYaw=undefined; } saveSettings(); document.querySelectorAll('#camSeg button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===on)); }
 function renderViews(){ if(V56.render())return;
   const W=innerWidth,H=innerHeight;
@@ -10716,7 +10716,73 @@ const V58=(()=>{
   return {S,newGame,hostStart,hostStop,hostTick,msg,guestStop,look,gOn,live};
 })();
 
-MOLL.V58=V58;
+const VM=(()=>{
+  const E=(c,i=.16)=>({emissive:c,emissiveIntensity:i,roughness:.75});
+  const add=(g,...m)=>{ for(const o of m)g.add(o); return g; };
+  function hand(skin,sleeve,side,o={}){ const g=new THREE.Group(); const sw=o.sw||.05;
+    const d=new THREE.Vector3(side*.1,-.34,.2), len=d.length(); const s=pcyl(sw,sw*1.3,len,sleeve,0,0,0,9,E(sleeve));
+    s.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize()); s.position.copy(d).multiplyScalar(.5).add(new THREE.Vector3(0,0,.03)); g.add(s);
+    if(o.cuff){ const c=pcyl(sw*1.25,sw*1.25,.045,o.cuff,0,0,0,9,E(o.cuff)); c.quaternion.copy(s.quaternion); c.position.set(side*.012,-.035,.05); g.add(c); }
+    if(o.bone){ add(g,pbox(.07,.04,.08,skin,0,0,-.01,0,E(skin,.3))); for(let k=0;k<4;k++)add(g,pbox(.014,.014,.075,skin,-.03+k*.02,-.012,-.075,0,E(skin,.3))); add(g,pbox(.016,.016,.06,skin,side*-.05,.005,-.03,0,E(skin,.3))); return g; }
+    if(o.paw){ const p=psph(.075,skin,0,0,-.02,10,E(skin)); p.scale.set(1.15,.75,1.1); g.add(p); for(let k=0;k<3;k++)add(g,psph(.022,o.pad||'#3a2418',-.035+k*.035,-.045,-.07,6,E('#3a2418',.05))); return g; }
+    if(o.rock){ const r=new THREE.Mesh(new THREE.IcosahedronGeometry(.075,0),cmat(skin,{roughness:.9,flatShading:true,emissive:skin,emissiveIntensity:.15})); r.scale.set(1.1,.85,1.15); r.position.z=-.02; g.add(r);
+      for(let k=0;k<3;k++){ const c=pcone(.018,.07,o.gem||'#ff6fd8',-.03+k*.03,.06,-.02+k*.01,5,{emissive:o.gem||'#ff6fd8',emissiveIntensity:.9}); c.rotation.z=(k-1)*.35; g.add(c); } return g; }
+    const gl=o.glove||skin; add(g,pbox(.09,.065,.095,gl,0,0,-.01,0,E(gl)));
+    for(let k=0;k<4;k++)add(g,pbox(.019,.024,.05,gl,-.03+k*.021,-.022,-.07,0,E(gl)));
+    add(g,pbox(.022,.026,.05,gl,side*-.055,.005,-.035,0,E(gl))); return g; }
+  function axe(){ const g=new THREE.Group(); add(g,pcyl(.02,.024,.82,'#7a4a24',0,.22,0,8,E('#7a4a24')));
+    for(let k=0;k<3;k++)add(g,pcyl(.026,.026,.03,'#3a2414',0,-.08+k*.07,0,8));
+    add(g,pbox(.035,.2,.07,'#8f969f',0,.56,-.06,0,{metalness:.6,roughness:.35,emissive:'#8f969f',emissiveIntensity:.12}));
+    const b=pbox(.02,.3,.16,'#c8ced6',0,.56,-.16,0,{metalness:.7,roughness:.25,emissive:'#c8ced6',emissiveIntensity:.15}); g.add(b);
+    add(g,pbox(.022,.07,.1,'#8f969f',0,.56,.07,0,{metalness:.6,roughness:.35})); return g; }
+  function bow(){ const g=new THREE.Group(); const N=10, H=.36, D=.13; let prev=null;
+    for(let k=0;k<=N;k++){ const y=-H+2*H*k/N, z=-D*(1-(y/H)**2); const pt=new THREE.Vector3(0,y,z); if(prev){ const d=pt.clone().sub(prev); const m=pbox(.022,d.length()+.01,.03,'#6a4224',0,0,0,0,E('#6a4224')); m.position.copy(prev).add(pt).multiplyScalar(.5); m.rotation.x=Math.atan2(d.z,d.y)*-1; g.add(m); } prev=pt; }
+    add(g,pbox(.003,2*H,.003,'#f0ead8',0,0,0,0,E('#f0ead8',.5)), pbox(.034,.1,.04,'#2a6a7a',0,0,-D,0,E('#2a6a7a'))); g.position.z=D*.6; return g; }
+  function arrow(){ const g=new THREE.Group(); const s=pcyl(.007,.007,.62,'#c8a46a',0,0,-.24,6,E('#c8a46a')); s.rotation.x=Math.PI/2; g.add(s);
+    const h=pcone(.02,.06,'#9aa2ad',0,0,-.58,6,E('#9aa2ad',.3)); h.rotation.x=-Math.PI/2; g.add(h);
+    for(let k=0;k<3;k++){ const f=pbox(.002,.04,.07,'#22c3e6',0,0,.04,0,E('#22c3e6',.5)); f.rotation.z=k*Math.PI/3*2; g.add(f); } return g; }
+  function staff(){ const g=new THREE.Group(); add(g,pcyl(.022,.03,.9,'#5a3a1e',0,.12,0,8,E('#5a3a1e')));
+    const r=new THREE.Mesh(new THREE.TorusGeometry(.06,.012,6,14),cmat('#e0b64a',{metalness:.6,roughness:.3,emissive:'#e0b64a',emissiveIntensity:.3})); r.position.y=.56; g.add(r);
+    add(g,psph(.06,'#ff8a2a',0,.6,0,12,{emissive:'#ff7a1a',emissiveIntensity:1.6})); add(g,psph(.085,'#ffb060',0,.6,0,10,{emissive:'#ff7a1a',emissiveIntensity:.8,transparent:true,opacity:.35})); return g; }
+  function scythe(){ const g=new THREE.Group(); add(g,pcyl(.02,.022,1,'#3a2a20',0,.18,0,8,E('#3a2a20')));
+    for(let k=0;k<8;k++){ const a=k/7; const b=pbox(.012,.09-a*.07,.07,'#d6dcec',0,.66-a*a*.2,-.04-k*.06,0,{metalness:.75,roughness:.25,emissive:'#d6dcec',emissiveIntensity:.3}); b.rotation.x=-a*.7; g.add(b); }
+    add(g,pbox(.045,.06,.06,'#6a6f7a',0,.68,0,0,{metalness:.6,roughness:.35})); return g; }
+  function orb(c,r){ const g=new THREE.Group(); add(g,psph(r,c,0,0,0,14,{emissive:c,emissiveIntensity:1.3,transparent:true,opacity:.75})); add(g,psph(r*1.45,c,0,0,0,10,{emissive:c,emissiveIntensity:.6,transparent:true,opacity:.22})); return g; }
+  const KINDS={
+    kalju:()=>{ const R=hand('#d9a070','#6a4a2a',1,{cuff:'#3a2414'}); const w=axe(); w.scale.setScalar(.8); w.position.set(0,-.02,0); w.rotation.set(-.3,0,.2); R.add(w); const L=hand('#d9a070','#6a4a2a',-1,{cuff:'#3a2414'}); return {R,L,melee:true}; },
+    vilkur:()=>{ const L=hand('#e8c49a','#1f6f7a',-1,{glove:'#2a3a3a'}); const b=bow(); b.rotation.set(0,.7,-.25); L.add(b); const a=arrow(); a.position.set(.02,.03,.14); b.add(a); const R=hand('#e8c49a','#1f6f7a',1,{glove:'#2a3a3a'}); return {R,L,ranged:true,arrow:a,bowL:true}; },
+    sade:()=>{ const R=hand('#f0c8a8','#5a2a8a',1,{cuff:'#e0b64a'}); const s=staff(); s.position.set(0,-.02,0); s.rotation.set(-.2,0,.14); R.add(s); const L=hand('#f0c8a8','#5a2a8a',-1,{cuff:'#e0b64a'}); const o=orb('#ff8a2a',.035); o.position.set(0,.08,-.07); L.add(o); return {R,L,ranged:true}; },
+    kild:()=>{ const R=hand('#2a1a2e','#3a2440',1,{rock:true}); const o=orb('#ff6fd8',.05); o.position.set(0,.13,-.08); R.add(o); const L=hand('#2a1a2e','#3a2440',-1,{rock:true}); return {R,L,ranged:true}; },
+    vikat:()=>{ const R=hand('#efe6d0','#1a1a22',1,{bone:true,sw:.06}); const s=scythe(); s.position.set(0,-.02,0); s.rotation.set(-.15,.5,.22); R.add(s); const L=hand('#efe6d0','#1a1a22',-1,{bone:true,sw:.06}); return {R,L,melee:true}; },
+    kapi:()=>{ const R=hand('#b06a3a','#9a5a30',1,{paw:true,sw:.07}); const L=hand('#b06a3a','#9a5a30',-1,{paw:true,sw:.07}); const o=orb('#4ac0ff',.07); return {R,L,orb:o,push:true}; }
+  };
+  const BASE={R:[.25,-.24,-.5],L:[-.25,-.26,-.52]};
+  function build(p){ const k=(p.hero&&p.hero.key)||'kalju'; const f=KINDS[k]||KINDS.kalju; const P=f(); const g=new THREE.Group(); g.add(P.R,P.L); if(P.orb){ P.orb.position.set(0,-.22,-.62); g.add(P.orb); }
+    g.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.receiveShadow=false; o.frustumCulled=false; o.renderOrder=5; } });
+    P.R.position.set(...BASE.R); P.L.position.set(...BASE.L); P.R.rotation.set(.05,-.12,0); P.L.rotation.set(.05,.12,0); g.visible=false; g.userData=P; P.key=k; return g; }
+  function clean(){ for(const c of [...scene.children]){ if(c.isCamera&&c.userData.vmCam&&!state.players.some(p=>p.cam===c))scene.remove(c); } }
+  function update(p,dt){ if(!p.cam)return; if(!p.vm||p.vm.userData.key!==((p.hero&&p.hero.key)||'kalju')){ if(p.vm)p.cam.remove(p.vm); clean(); p.vm=build(p); p.cam.add(p.vm); p.cam.userData.vmCam=true; }
+    if(!p.cam.parent)scene.add(p.cam);
+    const P=p.vm.userData, S=p.vmS||(p.vmS={t:0,atk:0,cast:0,hurt:0,lastA:0,lastZ:0,lastX:0,sup:false,sw:0,hp:p.hp});
+    if((p.cdAttack||0)>S.lastA+.05)S.atk=1; S.lastA=p.cdAttack||0; const sw=(p.anim&&p.anim.swing)||0; if(sw>S.sw+.05&&S.atk<.2)S.atk=1; S.sw=sw;
+    if((p.cdZ||0)>S.lastZ+.05||(p.cdX||0)>S.lastX+.05||(S.sup&&!p.superReady))S.cast=1; S.lastZ=p.cdZ||0; S.lastX=p.cdX||0; S.sup=!!p.superReady;
+    if(p.hp<S.hp-1)S.hurt=1; S.hp=p.hp;
+    S.atk=Math.max(0,S.atk-dt/(P.melee?.32:.22)); S.cast=Math.max(0,S.cast-dt/.5); S.hurt=Math.max(0,S.hurt-dt/.25);
+    const mv=p.anim&&p.anim.moving; S.t+=dt*(mv?(p.dash?14:9):1.6); const bx=Math.cos(S.t*.5)*(mv?.022:.006), by=Math.abs(Math.sin(S.t*.5))*(mv?-.03:-.008);
+    const ak=1-S.atk, ae=S.atk>0?Math.sin(ak*Math.PI):0, ck=S.cast>0?Math.sin((1-S.cast)*Math.PI):0, hk=S.hurt>0?Math.sin(S.hurt*Math.PI*3)*.02:0;
+    const R=P.R, L=P.L; R.position.set(BASE.R[0]+bx+hk,BASE.R[1]+by+ck*.1,BASE.R[2]+(-ck*.12)); L.position.set(BASE.L[0]+bx-hk,BASE.L[1]+by+ck*.1,BASE.L[2]+(-ck*.12));
+    R.rotation.set(.05,-.12,0); L.rotation.set(.05,.12,0); if(P.bowL){ L.position.x+=.1; L.position.y+=.04; }
+    if(S.atk>0){ if(P.melee){ const wu=Math.min(1,ak/.22), st=ak<.22?0:Math.min(1,(ak-.22)/.25), rc=ak<.47?0:(ak-.47)/.53; const k=(1-rc);
+        R.rotation.x=.05+(.8*wu-1.9*st)*k; R.rotation.z=(.25*wu-.7*st)*k; R.position.x-=.1*st*k; R.position.y+=(.06*wu-.02*st)*k; R.position.z-=.08*st*k; }
+      else if(P.push){ R.position.z-=ae*.18; L.position.z-=ae*.18; if(P.orb){ P.orb.position.z=-.62-ae*.3; P.orb.scale.setScalar(1+ae*.6); } }
+      else { const H=P.bowL?L:R; H.position.z+=ae*.07; H.rotation.x+=ae*.3; if(P.arrow)P.arrow.visible=ak>.6; } }
+    else { if(P.arrow)P.arrow.visible=true; if(P.orb){ P.orb.position.set(0,-.22+Math.sin(S.t*.7)*.01,-.62); P.orb.scale.setScalar(1); } }
+    if(S.cast>0){ R.rotation.x-=ck*.5; L.rotation.x-=ck*.5; } }
+  function show(p,on){ if(p.vm)p.vm.visible=!!on&&SET.fpv&&p.alive; }
+  return {update,show};
+})();
+
+MOLL.V58=V58; MOLL.VM=VM;
 V56.initUI(); MOLL.V56=V56;
 const clock=new THREE.Clock();
 function tick(dt){ const rdt=dt; if(state.slowmo>0){ state.slowmo-=dt; dt*=.25; } if(state.hitStop>0){ state.hitStop-=dt; dt=0; } state.time+=dt;
