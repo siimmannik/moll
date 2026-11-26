@@ -534,6 +534,8 @@ body.touch .ovx{top:calc(14px + env(safe-area-inset-top));right:calc(18px + env(
 }
 body.touch .ov .sheet>*:first-child{padding-right:64px}
 body.touch #pause{z-index:40} body.touch #pause small{display:none} body.touch #pause .pbtns button{font-size:22px;padding:12px 22px}
+#tbCam{right:calc(258px + env(safe-area-inset-right));bottom:44px}
+body.touch.fpv.ingame .xh1,body.touch.fpv.netguest .xh1{display:block!important;left:50%}
 
 </style>
 
@@ -9284,6 +9286,7 @@ function setPause(on){ if(state.mode!=='play'&&state.mode!=='pause')return; if(o
 function tryLock(){ if(V56.touch())return; if(state.mode==='play'&&canvas.requestPointerLock){ try{ const r=canvas.requestPointerLock(); if(r&&r.catch)r.catch(()=>{}); }catch(e){} } }
 document.addEventListener('pointerlockchange',()=>{ if(document.pointerLockElement!==canvas&&state.mode==='play'){ state.lockExitT=state.time; setPause(true); } });
 addEventListener('keydown',e=>{ if(!keys[e.code])once[e.code]=true; keys[e.code]=true; if(state.mode==='play'&&(e.code==='Space'||e.code.startsWith('Arrow')||e.code==='Enter'||e.code==='ShiftRight'))e.preventDefault();
+  if(e.code==='KeyF'&&state.mode==='play'){ setFpv(!SET.fpv); showMsg('',SET.fpv?'VAADE SILMADEST':'VAADE SELJA TAGANT',1.2); }
   if(e.code==='Escape'&&state.time-state.lockExitT>.4){ if(state.mode==='pause'){ setPause(false); tryLock(); } else setPause(true); } });
 addEventListener('keyup',e=>{ keys[e.code]=false; });
 document.addEventListener('mousemove',e=>{ const p=state.players[0]; if(!p||state.mode!=='play'||state.time<.5||Math.abs(e.movementX)>150||Math.abs(e.movementY)>150)return; const k=.0024*SET.sens; if(e.movementX)p.manualT=state.time; p.yaw-=e.movementX*k; p.pitch=clamp(p.pitch+e.movementY*k,.02,1.15); });
@@ -9730,7 +9733,13 @@ function updateCamera(dt){
   const c=V3(); state.players.forEach(p=>c.add(p.pos)); c.divideScalar(state.players.length); camTarget.copy(c);
   sun.target.position.copy(camTarget); sun.position.copy(camTarget).add(SUN_OFF);
   for(const p of state.players){
-    const f=fwd(p), rt=V3(-f.z,0,f.x); const sm=p.sizeMul||1; const dist=SET.camDist*(p.buffs&&p.buffs.giant>0?1.7:(p.buffs&&p.buffs.tiny>0?.7:1));
+    const f=fwd(p), rt=V3(-f.z,0,f.x); const sm=p.sizeMul||1;
+    if(SET.fpv){ const hh=(p.height||2.2)*.84*sm*(p.buffs&&p.buffs.giant>0?1.6:(p.buffs&&p.buffs.tiny>0?.6:1)); const ey=V3(p.pos.x+f.x*.3*sm,p.pos.y+hh,p.pos.z+f.z*.3*sm);
+      if(!p.camPos||p.camPos.distanceTo(ey)>3)p.camPos=ey.clone(); else p.camPos.lerp(ey,1-Math.pow(1e-7,dt)); p.camT=0; p.camLift=0;
+      p.cam.position.copy(p.camPos); if(state.shake>0){ p.cam.position.x+=rand(-1,1)*state.shake*.12; p.cam.position.y+=rand(-1,1)*state.shake*.12; }
+      const lp=(p.pitch-.45)*1.2; p.cam.lookAt(p.camPos.x+f.x*Math.cos(lp)*6,p.camPos.y-Math.sin(lp)*6,p.camPos.z+f.z*Math.cos(lp)*6); if(p.buffs&&p.buffs.wine>0)p.cam.rotateZ(Math.sin(state.time*2.6)*.14);
+      p.fovKick=(p.fovKick||0)*Math.max(0,1-dt*3.5); p.cam.fov=74+p.fovKick*12+(p.dash?8:0); continue; }
+    const dist=SET.camDist*(p.buffs&&p.buffs.giant>0?1.7:(p.buffs&&p.buffs.tiny>0?.7:1));
     /* Kaamera kõrgus kasvab koos kaugusseadikuga: kitsas koridoris lõikab sein kauguse maha ja muidu
        ei muudaks seadiku ülemine pool enam midagi. Kõrgus ei sõltu seinast, seega seadik mõjub alati. */
     const eye=V3(p.pos.x+rt.x*1.5*sm,(2.0+Math.max(-0.7,(SET.camDist-8)*0.17))*sm+p.pos.y,p.pos.z+rt.z*1.5*sm); // õla tagant, veidi paremalt; p.pos.y → kaamera tõuseb hüppega
@@ -9768,13 +9777,16 @@ function renderWith(cam,key,x,y,w,h){ renderer.setViewport(x,y,w,h); renderer.se
     c.composer.render(); } else renderer.render(scene,cam); }
 addEventListener('keydown',e=>{ if(e.code==='KeyF'&&state.mode!=='menu'){ bloomOn=!bloomOn; SET.bloom=bloomOn; saveSettings(); showMsg('',bloomOn?'EFEKTID SEES':'EFEKTID VÄLJAS',1); } });
 function faceCam(cam){ V54.face(cam); for(const e of ents){ const u=e.mesh.userData; if(u.M&&u.M.paper&&e.mesh.visible){ e.mesh.rotation.y=Math.atan2(cam.position.x-e.pos.x,cam.position.z-e.pos.z); } } }
+function fpvHide(p){ if(!SET.fpv||!p.mesh||!p.mesh.visible)return false; p.mesh.visible=false; return true; }
+function fpvShow(p,h){ if(h)p.mesh.visible=true; }
+function setFpv(on){ on=!!on; if(on===!!SET.fpv)return; if(on){ SET.acBefore=SET.autoCam; SET.autoCam=false; } else SET.autoCam=SET.acBefore!==undefined?SET.acBefore:true; SET.fpv=on; document.body.classList.toggle('fpv',on); for(const p of state.players){ p.camPos=null; p.refYaw=undefined; } saveSettings(); document.querySelectorAll('#camSeg button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===on)); }
 function renderViews(){ if(V56.render())return;
   const W=innerWidth,H=innerHeight;
   if(state.mode==='menu'||state.mode==='over'||!state.players.length){ renderer.setScissorTest(true); camera.aspect=W/H; camera.updateProjectionMatrix(); renderWith(camera,'menu',0,0,W,H); renderer.setScissorTest(false); return; }
   const n=state.players.length; renderer.setScissorTest(true);
   state.players.forEach((p,i)=>{ const w=Math.floor(W/n), x=i*w; renderer.setViewport(x,0,w,H); renderer.setScissor(x,0,w,H); p.cam.aspect=w/H; p.cam.updateProjectionMatrix();
     // oma tegelase silt on oma vaates segav – peida
-    if(p.bar)p.bar.sp.visible=false; faceCam(p.cam); renderWith(p.cam,'v'+n+'_'+i,x,0,w,H); if(p.bar)p.bar.sp.visible=p.alive; });
+    if(p.bar)p.bar.sp.visible=false; const fh=fpvHide(p); faceCam(p.cam); renderWith(p.cam,'v'+n+'_'+i,x,0,w,H); fpvShow(p,fh); if(p.bar)p.bar.sp.visible=p.alive; });
   renderer.setScissorTest(false);
 }
 
@@ -10488,7 +10500,7 @@ const V56=(()=>{
   function buildTouch(){ if(built)return; built=true; TOUCH=true; document.body.classList.add('touch');
     const tc=mk('div','tc'); tc.innerHTML='<div id="tcL"></div><div id="tcR"></div><div id="tcStick"><i></i></div>'
       +'<button class="tb" id="tbAtk" data-k="atk">LÖÖK</button><button class="tb" id="tbJump" data-k="jump" data-o="1">HÜPE</button><button class="tb" id="tbZ" data-k="z">Z</button><button class="tb" id="tbX" data-k="sup">X</button>'
-      +'<button class="tb sm" id="tbTurn" data-k="turn" data-o="1">↻</button><button class="tb sm" id="tbDance" data-k="dance" data-o="1">♪</button><button class="tb sm" id="tbPause">II</button>';
+      +'<button class="tb sm" id="tbTurn" data-k="turn" data-o="1">↻</button><button class="tb sm" id="tbDance" data-k="dance" data-o="1">♪</button><button class="tb sm" id="tbCam">👁</button><button class="tb sm" id="tbPause">II</button>';
     document.body.appendChild(tc); document.body.appendChild(mk('div','rot','','<b>KEERA TELEFON KÜLILI</b>'));
     const st=tc.querySelector('#tcStick'), nub=st.firstChild, L=tc.querySelector('#tcL'), Rz=tc.querySelector('#tcR'); let jid=null,ox=0,oy=0;
     const jmove=e=>{ if(e.pointerId!==jid)return; const dx=e.clientX-ox, dy=e.clientY-oy, len=Math.hypot(dx,dy), RR=54; const k=Math.min(1,len/RR); if(len<9){ T.mx=T.mz=0; nub.style.transform=''; return; } T.mx=dx/len*k; T.mz=dy/len*k; nub.style.transform='translate('+(dx/len*k*RR)+'px,'+(dy/len*k*RR)+'px)'; };
@@ -10501,6 +10513,7 @@ const V56=(()=>{
     Rz.addEventListener('pointerup',lend); Rz.addEventListener('pointercancel',lend);
     tc.querySelectorAll('.tb[data-k]').forEach(b=>{ const k=b.dataset.k, one=!!b.dataset.o; const up=e=>{ e.preventDefault(); b.classList.remove('dn'); if(!one)T[k]=false; };
       b.addEventListener('pointerdown',e=>{ e.preventDefault(); try{ b.setPointerCapture(e.pointerId); }catch(x){} b.classList.add('dn'); T[k]=true; ac(); }); b.addEventListener('pointerup',up); b.addEventListener('pointercancel',up); });
+    tc.querySelector('#tbCam').addEventListener('pointerdown',e=>{ e.preventDefault(); setFpv(!SET.fpv); });
     tc.querySelector('#tbPause').addEventListener('pointerdown',e=>{ e.preventDefault(); if(NET.role==='guest')return; setPause(state.mode!=='pause'); });
     document.addEventListener('contextmenu',e=>{ if(TOUCH)e.preventDefault(); }); }
   function input(p,inp,dt){
@@ -10534,7 +10547,7 @@ const V56=(()=>{
   function startCall(){ if(!NET.conn||!NET.peer)return; if(!NET.cv){ NET.cv=document.createElement('canvas'); NET.cv.width=960; NET.cv.height=540; NET.cx=NET.cv.getContext('2d',{alpha:false}); NET.cx.fillRect(0,0,960,540); }
     const s=NET.cv.captureStream(TOUCH?15:30); try{ s.getVideoTracks()[0].contentHint='motion'; }catch(e){} if(NET.adest)NET.adest.stream.getAudioTracks().forEach(t=>s.addTrack(t));
     const call=NET.peer.call(NET.conn.peer,s); NET.call=call; const tune=()=>{ try{ const pc=call.peerConnection; pc.getSenders().forEach(sd=>{ if(sd.track&&sd.track.kind==='video'){ const pa=sd.getParameters(); if(!pa.encodings||!pa.encodings.length)pa.encodings=[{}]; pa.encodings[0].maxBitrate=TOUCH?1500000:3500000; pa.encodings[0].maxFramerate=TOUCH?15:30; pa.degradationPreference='maintain-framerate'; sd.setParameters(pa).catch(()=>{}); } }); }catch(e){} }; setTimeout(tune,1500); setTimeout(tune,6000); }
-  function view(p,key,x,y,w,h){ renderer.setViewport(x,y,w,h); renderer.setScissor(x,y,w,h); p.cam.aspect=w/h; p.cam.updateProjectionMatrix(); if(p.bar)p.bar.sp.visible=false; faceCam(p.cam); renderWith(p.cam,key,x,y,w,h); if(p.bar)p.bar.sp.visible=p.alive; }
+  function view(p,key,x,y,w,h){ renderer.setViewport(x,y,w,h); renderer.setScissor(x,y,w,h); p.cam.aspect=w/h; p.cam.updateProjectionMatrix(); if(p.bar)p.bar.sp.visible=false; const fh=fpvHide(p); faceCam(p.cam); renderWith(p.cam,key,x,y,w,h); fpvShow(p,fh); if(p.bar)p.bar.sp.visible=p.alive; }
   function render(){ if(state.players.length<2)return false; const W=innerWidth,H=innerHeight;
     if(V58.gOn()){ renderer.setScissorTest(true); view(state.players[1],'g1',0,0,W,H); renderer.setScissorTest(false); return true; }
     if(NET.role==='host'&&NET.conn&&(state.mode==='play'||state.mode==='pause')){ renderer.setScissorTest(true); view(state.players[0],'n1',0,0,W,H); renderer.setScissorTest(false); return true; }
@@ -10583,7 +10596,10 @@ const V56=(()=>{
   function onStart(){ if(NET.role==='guest')return false; V58.newGame(); if(NET.role==='host'&&NET.conn){ state.nPlayers=2; if(!HEROES[state.picks[1]])state.picks[1]='vilkur'; }
     full(); return true; }
   function full(){ if(!TOUCH)return; try{ const d=document.documentElement; const fn=d.requestFullscreen||d.webkitRequestFullscreen; if(fn&&!document.fullscreenElement){ const r=fn.call(d,{navigationUI:'hide'}); if(r&&r.catch)r.catch(()=>{}); } if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{}); }catch(e){} }
-  function initUI(){ const row=mk('div','netRow','row'); row.innerHTML='<span class="lab">Online</span><button class="btn2" id="netHost">LOO TUBA</button><span class="hint" style="margin:0">või liitu sõbra toaga:</span><input id="netCode" maxlength="4" placeholder="KOOD" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn2" id="netJoin">LIITU</button>';
+  function initUI(){ const cr=mk('div','camRow','row'); cr.innerHTML='<span class="lab">Vaade</span><div class="seg" id="camSeg"><button data-v="0">SELJA TAGANT</button><button data-v="1">SILMADEST</button></div><span class="hint" style="margin:0">Mängus vaheta klahviga F või nupuga 👁.</span>';
+    const sty=$('#styleSeg'); const sr=sty&&sty.closest('.row'); if(sr)sr.parentNode.insertBefore(cr,sr.nextSibling); cr.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setFpv(b.dataset.v==='1')));
+    cr.querySelectorAll('button').forEach(b=>b.classList.toggle('on',(b.dataset.v==='1')===!!SET.fpv)); document.body.classList.toggle('fpv',!!SET.fpv);
+const row=mk('div','netRow','row'); row.innerHTML='<span class="lab">Online</span><button class="btn2" id="netHost">LOO TUBA</button><span class="hint" style="margin:0">või liitu sõbra toaga:</span><input id="netCode" maxlength="4" placeholder="KOOD" autocomplete="off" autocapitalize="characters" spellcheck="false"><button class="btn2" id="netJoin">LIITU</button>';
     const msg=mk('p','netMsg','hint',''); const p1=$('#pick1'); p1.parentNode.insertBefore(row,p1); p1.parentNode.insertBefore(msg,p1);
     $('#pMenu').addEventListener('click',()=>document.body.classList.remove('ingame')); $('#netHost').addEventListener('click',host); $('#netJoin').addEventListener('click',join); $('#netCode').addEventListener('keydown',e=>{ e.stopPropagation(); if(e.key==='Enter')join(); }); $('#netCode').addEventListener('keyup',e=>e.stopPropagation());
     const j=(Q.get('join')||'').toUpperCase().replace(/[^A-Z]/g,'').slice(0,4); if(j){ $('#netCode').value=j; row.classList.add('hot'); say('Vali kangelane ja vajuta <b>LIITU</b>.','ok'); }
