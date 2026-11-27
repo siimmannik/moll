@@ -10995,7 +10995,10 @@ body.v61photo .tb,body.v61photo #msg,body.v61photo #subs{visibility:hidden}
   function polaroid(url,cap){ const d=document.createElement('div'); d.className='v61Pol'; d.innerHTML='<img alt=""><b></b>'; d.querySelector('img').src=url; d.querySelector('b').textContent=cap; d.title='Klõpsa, et salvestada';
     d.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); download(url,'moll-selfie'); }); document.body.appendChild(d); requestAnimationFrame(()=>requestAnimationFrame(()=>d.classList.add('on')));
     setTimeout(()=>{ d.classList.remove('on'); setTimeout(()=>d.remove(),600); },3600); }
-  function download(url,name){ const a=document.createElement('a'); const t=new Date(); const z=n=>String(n).padStart(2,'0'); a.download=`${name}-${t.getFullYear()}${z(t.getMonth()+1)}${z(t.getDate())}-${z(t.getHours())}${z(t.getMinutes())}${z(t.getSeconds())}.${url.startsWith('data:image/png')?'png':'jpg'}`; a.href=url; document.body.appendChild(a); a.click(); a.remove(); }
+  let DL=null; try{ if(window.claude&&window.claude.use)window.claude.use('downloads').then(d=>{ DL=d; }).catch(()=>{}); }catch(_){}
+  function download(url,name){ if(DL){ const t=new Date(), z=n=>String(n).padStart(2,'0'); const ext=url.startsWith('data:image/png')?'png':'jpg'; const bin=atob(url.split(',')[1]), u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)u8[i]=bin.charCodeAt(i);
+      DL.save({filename:`${name}-${t.getFullYear()}${z(t.getMonth()+1)}${z(t.getDate())}-${z(t.getHours())}${z(t.getMinutes())}${z(t.getSeconds())}.${ext}`,data:new Blob([u8])}).catch(()=>{}); return; }
+    const a=document.createElement('a'); const t=new Date(); const z=n=>String(n).padStart(2,'0'); a.download=`${name}-${t.getFullYear()}${z(t.getMonth()+1)}${z(t.getDate())}-${z(t.getHours())}${z(t.getMinutes())}${z(t.getSeconds())}.${url.startsWith('data:image/png')?'png':'jpg'}`; a.href=url; document.body.appendChild(a); a.click(); a.remove(); }
 
   /* ================= AEGLUUBIS KORDUS ================= */
   const R={on:false};
